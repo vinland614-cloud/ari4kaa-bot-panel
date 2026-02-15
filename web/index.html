@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ARi4kaa Bot Panel</title>
+<style>
+body { background:#0e0e10; color:white; font-family:sans-serif; }
+button { padding:10px; margin:5px; }
+#chat { height:300px; overflow:auto; border:1px solid #333; padding:10px; }
+</style>
+</head>
+<body>
+<h1>🎛 ARi4kaa Bot Panel</h1>
+
+<h2>🎁 Розыгрыш</h2>
+<input id="keyword" placeholder="Кодовое слово">
+<input id="spam" type="number" value="3" min="1" max="7">
+<br>
+<button onclick="start()">Старт</button>
+<button onclick="stop()">Стоп</button>
+<button onclick="reroll()">Рерол</button>
+<button onclick="clearList()">Очистить участников</button>
+
+<h3>👥 Участники (новые сверху)</h3>
+<ul id="participants"></ul>
+
+<h2>💬 Чат</h2>
+<div id="chat"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+
+socket.on('chat', data => {
+  const chat = document.getElementById('chat');
+  chat.innerHTML += `<div><b>${data.user}:</b> ${data.message}</div>`;
+  chat.scrollTop = chat.scrollHeight;
+});
+
+socket.on('participants', list => {
+  const ul = document.getElementById('participants');
+  ul.innerHTML = '';
+  [...list].reverse().forEach(u => {
+    const li = document.createElement('li');
+    li.textContent = u;
+    ul.appendChild(li);
+  });
+});
+
+async function start(){
+  await fetch('/api/start',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      keyword: document.getElementById('keyword').value,
+      maxSpam: document.getElementById('spam').value
+    })
+  });
+}
+
+async function stop(){
+  await fetch('/api/stop',{method:'POST'});
+}
+
+async function reroll(){
+  const res = await fetch('/api/reroll',{method:'POST'});
+  const data = await res.json();
+  alert('Победитель: ' + (data.winner || 'нет участников'));
+}
+
+async function clearList(){
+  await fetch('/api/clear',{method:'POST'});
+}
+</script>
+</body>
+</html>

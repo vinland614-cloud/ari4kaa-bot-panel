@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: ari4kaa-bot-panel
+    env: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"
