@@ -20,21 +20,31 @@ socket.on('winner', data => {
   document.getElementById('winnerModal').style.display = 'block';
   document.getElementById('winnerName').innerText = data.name;
 
-  const ul = document.getElementById('winnerHistory');
-  ul.innerHTML = '';
-  data.history.forEach(d => {
-    const li = document.createElement('li');
-    li.innerText = d;
-    ul.appendChild(li);
+  const historyDiv = document.getElementById('winnerHistory');
+  historyDiv.innerHTML = '';
+  data.history.forEach(h => {
+    historyDiv.innerHTML += `<div>${h}</div>`;
   });
 });
 
-socket.on('winnerTimer', t => {
-  document.getElementById('timer').innerText = t;
+socket.on('winnerMessages', msgs => {
+  const div = document.getElementById('winnerMessages');
+  div.innerHTML = '';
+  msgs.forEach(m => {
+    div.innerHTML += `<div>${m}</div>`;
+  });
 });
 
-socket.on('winnerMessage', data => {
-  document.getElementById('winnerMsg').innerText = data.message;
+socket.on('timer', t => {
+  let m = Math.floor(t / 60);
+  let s = t % 60;
+  if (m < 10) m = '0' + m;
+  if (s < 10) s = '0' + s;
+  document.getElementById('timer').innerText = `${m}:${s}`;
+});
+
+socket.on('timerStopped', () => {
+  document.getElementById('timer').style.color = 'lime';
 });
 
 function start() {
@@ -44,7 +54,8 @@ function start() {
     body: JSON.stringify({
       keyword: document.getElementById('keyword').value,
       maxSpam: document.getElementById('maxSpam').value,
-      antiSpam: document.getElementById('antiSpam').checked
+      antiSpam: document.getElementById('antiSpam').checked,
+      allowRepeat: document.getElementById('allowRepeat').checked
     })
   });
 }
