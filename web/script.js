@@ -6,6 +6,7 @@ let currentWinner = null;
 
 window.onload = () => {
   fetch('/api/reset');
+  document.getElementById('keyword').value = '';
 };
 
 function start() {
@@ -18,10 +19,16 @@ function start() {
       allowRepeat: document.getElementById('allowRepeat').checked
     })
   });
+
+  document.getElementById('startBtn').style.background = 'gray';
+  document.getElementById('stopBtn').style.background = '';
 }
 
 function stop() {
   fetch('/api/stop', { method: 'POST' });
+
+  document.getElementById('stopBtn').style.background = 'gray';
+  document.getElementById('startBtn').style.background = '';
 }
 
 function winner() {
@@ -36,6 +43,7 @@ function winner() {
 
     seconds = 0;
     document.getElementById('timer').innerText = seconds;
+    document.getElementById('timer').style.color = 'white';
 
     clearInterval(timerInterval);
     timerInterval = setInterval(() => {
@@ -83,6 +91,6 @@ socket.on('winnerMessages', data => {
     div.prepend(msg);
 
     clearInterval(timerInterval);
-    document.getElementById('timer').style.color = 'green';
+    document.getElementById('timer').style.color = 'lightgreen';
   }
 });
