@@ -9,28 +9,25 @@
 
 <div class="container">
 
-  <div class="controls">
-    <h2>Розыгрыш</h2>
+  <div class="block">
+    <h2>🎁 Розыгрыш</h2>
 
     <input id="keyword" placeholder="Кодовое слово">
 
-    <label>
-      Антиспам
-      <input type="checkbox" id="antiSpam">
-    </label>
+    <div class="checkboxes">
+      <label><input type="checkbox" id="antiSpam"> Антиспам</label>
+      <label><input type="checkbox" id="allowRepeat"> Повторная победа</label>
+    </div>
 
-    <label>
-      Разрешить повторную победу
-      <input type="checkbox" id="allowRepeat">
-    </label>
-
-    <button id="startBtn" onclick="start()">Старт</button>
-    <button id="stopBtn" onclick="stop()">Стоп</button>
-    <button onclick="winner()">Выбрать победителя</button>
+    <div class="buttonsRow">
+      <button id="startBtn" onclick="start()">Старт</button>
+      <button class="centerBtn" onclick="winner()">Выбрать победителя</button>
+      <button id="stopBtn" onclick="stop()">Стоп</button>
+    </div>
   </div>
 
-  <div class="participants">
-    <h2>Участники <button onclick="clearList()">🗑</button></h2>
+  <div class="block">
+    <h2>👥 Участники <button class="clearBtn" onclick="clearList()">🗑</button></h2>
     <ul id="participantsList"></ul>
   </div>
 
@@ -38,12 +35,20 @@
 
 <div id="winnerModal" class="modal">
   <div class="modalContent">
-    <h2 id="winnerName"></h2>
-    <div>Сообщения</div>
-    <div id="winnerMessages"></div>
-    <div>Таймер: <span id="timer">0</span></div>
-    <button onclick="reroll()">Рерол</button>
-    <button onclick="closeModal()">Закрыть</button>
+    <h2 class="winnerTitle">🏆 Победитель</h2>
+    <div id="winnerName" class="winnerName"></div>
+
+    <div class="messagesHeader">
+      Сообщения
+      <span id="timer">0</span>
+    </div>
+
+    <div id="winnerMessages" class="messages"></div>
+
+    <div class="modalButtons">
+      <button onclick="reroll()">Рерол</button>
+      <button onclick="closeModal()">Закрыть</button>
+    </div>
   </div>
 </div>
 
