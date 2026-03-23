@@ -4,11 +4,6 @@ let timerInterval;
 let seconds = 0;
 let currentWinner = null;
 
-window.onload = () => {
-  fetch('/api/reset');
-  document.getElementById('keyword').value = '';
-};
-
 function start() {
   fetch('/api/start', {
     method: 'POST',
@@ -19,16 +14,10 @@ function start() {
       allowRepeat: document.getElementById('allowRepeat').checked
     })
   });
-
-  document.getElementById('startBtn').style.background = 'gray';
-  document.getElementById('stopBtn').style.background = '';
 }
 
 function stop() {
   fetch('/api/stop', { method: 'POST' });
-
-  document.getElementById('stopBtn').style.background = 'gray';
-  document.getElementById('startBtn').style.background = '';
 }
 
 function winner() {
@@ -43,7 +32,6 @@ function winner() {
 
     seconds = 0;
     document.getElementById('timer').innerText = seconds;
-    document.getElementById('timer').style.color = 'white';
 
     clearInterval(timerInterval);
     timerInterval = setInterval(() => {
@@ -52,6 +40,9 @@ function winner() {
     }, 1000);
 
     document.getElementById('winnerMessages').innerHTML = '';
+
+    saveHistory(data.winner);
+    loadHistory(data.winner);
   });
 }
 
@@ -84,13 +75,37 @@ socket.on('participants', data => {
 });
 
 socket.on('winnerMessages', data => {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.innerText = data.user + ': ' + data.message;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+
   if (data.user === currentWinner) {
-    const div = document.getElementById('winnerMessages');
     const msg = document.createElement('div');
     msg.innerText = data.message;
-    div.prepend(msg);
+    document.getElementById('winnerMessages').prepend(msg);
 
     clearInterval(timerInterval);
-    document.getElementById('timer').style.color = 'lightgreen';
+    document.getElementById('timer').style.color = 'green';
   }
 });
+
+/* История побед */
+function saveHistory(user) {
+  let history = JSON.parse(localStorage.getItem('history_' + user)) || [];
+  history.unshift(new Date().toLocaleString('ru-RU'));
+  localStorage.setItem('history_' + user, JSON.stringify(history));
+}
+
+function loadHistory(user) {
+  let history = JSON.parse(localStorage.getItem('history_' + user)) || [];
+  const div = document.getElementById('winnerHistory');
+  div.innerHTML = '';
+
+  history.forEach(date => {
+    const d = document.createElement('div');
+    d.innerText = date;
+    div.appendChild(d);
+  });
+}
