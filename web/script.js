@@ -18,16 +18,10 @@ function start() {
       allowRepeat: document.getElementById('allowRepeat').checked
     })
   });
-
-  document.getElementById('startBtn').classList.add('active');
-  document.getElementById('stopBtn').classList.remove('active');
 }
 
 function stop() {
   fetch('/api/stop', { method: 'POST' });
-
-  document.getElementById('stopBtn').classList.add('active');
-  document.getElementById('startBtn').classList.remove('active');
 }
 
 function winner() {
