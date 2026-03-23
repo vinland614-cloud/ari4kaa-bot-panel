@@ -9,15 +9,18 @@
 
 <div class="main">
 
-  <!-- ЧАТ -->
+  <!-- УЧАСТНИКИ -->
   <div class="panel">
-    <div class="panelTitle center">Чат</div>
-    <div id="chat" class="chatBox"></div>
+    <div class="panelTitle">
+      Участники
+      <button class="clearBtn" onclick="clearList()">🧹</button>
+    </div>
+    <ul id="participantsList"></ul>
   </div>
 
   <!-- РОЗЫГРЫШ -->
   <div class="panel">
-    <div class="panelTitle">Розыгрыш</div>
+    <div class="panelTitle center">Розыгрыш</div>
 
     <div class="row">
       <span>Кодовое слово</span>
@@ -42,13 +45,10 @@
     </div>
   </div>
 
-  <!-- УЧАСТНИКИ -->
+  <!-- ЧАТ -->
   <div class="panel">
-    <div class="panelTitle">
-      Участники
-      <button class="clearBtn" onclick="clearList()">🧹</button>
-    </div>
-    <ul id="participantsList"></ul>
+    <div class="panelTitle center">Чат</div>
+    <div id="chat" class="chatBox"></div>
   </div>
 
 </div>
