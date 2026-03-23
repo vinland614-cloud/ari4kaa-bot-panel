@@ -12,17 +12,29 @@ app.use(express.static('web'));
 
 const PORT = process.env.PORT || 3000;
 
+/* ===== Проверка ENV ===== */
+const TWITCH_USERNAME = process.env.TWITCH_USERNAME || '';
+const TWITCH_OAUTH = process.env.TWITCH_OAUTH || '';
+const CHANNELS = process.env.CHANNELS
+  ? process.env.CHANNELS.split(',')
+  : [];
+
+console.log('Channels:', CHANNELS);
+console.log('Bot username:', TWITCH_USERNAME);
+
+/* ===== Twitch client ===== */
 const client = new tmi.Client({
   options: { debug: true },
   identity: {
-    username: process.env.TWITCH_USERNAME,
-    password: process.env.TWITCH_OAUTH
+    username: TWITCH_USERNAME,
+    password: TWITCH_OAUTH
   },
-  channels: process.env.CHANNELS.split(',')
+  channels: CHANNELS
 });
 
-client.connect();
+client.connect().catch(console.error);
 
+/* ===== Giveaway data ===== */
 let participants = [];
 let participantData = {};
 let giveawayActive = false;
@@ -31,6 +43,7 @@ let antiSpam = false;
 let allowRepeat = false;
 let currentWinner = null;
 
+/* ===== API ===== */
 app.get('/api/reset', (req, res) => {
   participants = [];
   participantData = {};
@@ -40,7 +53,7 @@ app.get('/api/reset', (req, res) => {
 
 app.post('/api/start', (req, res) => {
   giveawayActive = true;
-  keyword = req.body.keyword.toLowerCase();
+  keyword = (req.body.keyword || '').toLowerCase();
   antiSpam = req.body.antiSpam;
   allowRepeat = req.body.allowRepeat;
   res.sendStatus(200);
@@ -52,13 +65,17 @@ app.post('/api/stop', (req, res) => {
 });
 
 app.get('/api/winner', (req, res) => {
-  const activeUsers = participants.filter(u => participantData[u].active);
+  const activeUsers = participants.filter(
+    u => participantData[u] && participantData[u].active
+  );
 
   if (activeUsers.length === 0) {
     return res.json({ winner: null });
   }
 
-  const winner = activeUsers[Math.floor(Math.random() * activeUsers.length)];
+  const winner =
+    activeUsers[Math.floor(Math.random() * activeUsers.length)];
+
   currentWinner = winner;
 
   if (!allowRepeat) {
@@ -70,6 +87,7 @@ app.get('/api/winner', (req, res) => {
   res.json({ winner });
 });
 
+/* ===== Twitch chat listener ===== */
 client.on('message', (channel, tags, message, self) => {
   if (self) return;
   if (!giveawayActive) return;
@@ -84,7 +102,7 @@ client.on('message', (channel, tags, message, self) => {
     };
   }
 
-  if (msg.includes(keyword)) {
+  if (keyword && msg.includes(keyword)) {
     participantData[username].messages++;
 
     if (antiSpam && participantData[username].messages > 3) {
@@ -104,6 +122,7 @@ client.on('message', (channel, tags, message, self) => {
   });
 });
 
+/* ===== Start server ===== */
 server.listen(PORT, () => {
   console.log('Server started on port ' + PORT);
 });
