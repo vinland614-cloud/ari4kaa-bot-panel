@@ -1,184 +1,125 @@
-require('dotenv').config();
 const express = require('express');
-const http = require('http');
 const tmi = require('tmi.js');
-const { Server } = require('socket.io');
-const fs = require('fs');
+const http = require('http');
+const socketIo = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = socketIo(server);
 
-const PORT = process.env.PORT || 3000;
-const BOT_USERNAME = process.env.TWITCH_USERNAME;
-const OAUTH = process.env.TWITCH_OAUTH;
-const CHANNELS = (process.env.CHANNELS || 'otoru_').split(',');
+app.use(express.json());
+app.use(express.static('web'));
 
-// ===== СОСТОЯНИЕ =====
-let isRunning = false;
 let participants = [];
-let participantSet = new Set();
-let winners = [];
-let currentWinner = null;
-let winnerMessages = [];
-
-let keyword = '!';
-let maxSpam = 3;
+let participantData = {};
+let winnersHistory = [];
+let isRunning = false;
+let keyword = '';
 let antiSpamEnabled = false;
-let allowRepeatWinner = false;
+let allowRepeatWin = false;
 
-let spamCount = {};
-
-let timer = 0;
-let timerInterval = null;
-let timerStopped = false;
-
-let winnerHistory = {};
-
-// ===== TWITCH =====
 const client = new tmi.Client({
+  options: { debug: true },
   identity: {
-    username: BOT_USERNAME,
-    password: OAUTH
+    username: process.env.TWITCH_BOT_USERNAME,
+    password: process.env.TWITCH_OAUTH
   },
-  channels: CHANNELS
+  channels: process.env.TWITCH_CHANNELS.split(',')
 });
 
 client.connect();
 
-// ===== ЧАТ =====
 client.on('message', (channel, tags, message, self) => {
   if (self) return;
+  if (!isRunning) return;
 
-  const username = tags.username.toLowerCase();
-  const displayName = tags['display-name'];
+  const username = tags.username;
+  const msg = message.toLowerCase().trim();
 
-  io.emit('chat', {
-    user: displayName,
-    message: message
-  });
+  if (msg === keyword.toLowerCase().trim()) {
 
-  // ===== УЧАСТНИКИ =====
-  if (isRunning && message.toLowerCase() === keyword.toLowerCase()) {
-
-    if (antiSpamEnabled) {
-      if (!spamCount[username]) spamCount[username] = 0;
-      spamCount[username]++;
-
-      if (spamCount[username] > maxSpam) {
-        return;
-      }
-    }
-
-    if (!participantSet.has(username)) {
-      participantSet.add(username);
+    if (!participantData[username]) {
+      participantData[username] = {
+        spam: 0,
+        active: true,
+        wins: 0,
+        messages: []
+      };
       participants.unshift(username);
-      io.emit('participants', participants);
     }
+
+    participantData[username].spam++;
+
+    if (antiSpamEnabled && participantData[username].spam > 3) {
+      participantData[username].active = false;
+    }
+
+    io.emit('participants', { participants, participantData });
   }
 
-  // ===== СООБЩЕНИЯ ПОБЕДИТЕЛЯ =====
-  if (currentWinner && username === currentWinner) {
-    winnerMessages.unshift(message);
-    io.emit('winnerMessages', winnerMessages);
-
-    if (!timerStopped) {
-      timerStopped = true;
-      clearInterval(timerInterval);
-      io.emit('timerStopped');
-    }
+  if (participantData[username]) {
+    participantData[username].messages.push(message);
+    io.emit('winnerMessages', {
+      user: username,
+      message: message
+    });
   }
 });
 
-// ===== API =====
-app.use(express.json());
-app.use(express.static('web'));
-
-// СТАРТ
 app.post('/api/start', (req, res) => {
-  isRunning = true;
   keyword = req.body.keyword;
-  maxSpam = req.body.maxSpam;
   antiSpamEnabled = req.body.antiSpam;
-  allowRepeatWinner = req.body.allowRepeat;
+  allowRepeatWin = req.body.allowRepeat;
+  isRunning = true;
   res.json({ success: true });
 });
 
-// СТОП
 app.post('/api/stop', (req, res) => {
   isRunning = false;
   res.json({ success: true });
 });
 
-// ВЫБРАТЬ ПОБЕДИТЕЛЯ
-app.post('/api/winner', (req, res) => {
-  pickWinner();
-  res.json({ success: true });
-});
-
-// РЕРОЛ
-app.post('/api/reroll', (req, res) => {
-  pickWinner();
-  res.json({ success: true });
-});
-
-// ОЧИСТИТЬ
-app.post('/api/clear', (req, res) => {
+app.post('/api/reset', (req, res) => {
   participants = [];
-  participantSet.clear();
-  winners = [];
-  io.emit('participants', participants);
+  participantData = {};
   res.json({ success: true });
 });
 
-// ===== ВЫБОР ПОБЕДИТЕЛЯ =====
-function pickWinner() {
+app.get('/api/winner', (req, res) => {
+  const activeUsers = participants.filter(u => participantData[u].active);
 
-  let eligible;
-
-  if (allowRepeatWinner) {
-    eligible = participants;
-  } else {
-    eligible = participants.filter(p => !winners.includes(p));
+  if (activeUsers.length === 0) {
+    return res.json({ winner: null });
   }
 
-  if (eligible.length === 0) return;
+  const winner = activeUsers[Math.floor(Math.random() * activeUsers.length)];
 
-  const winner = eligible[Math.floor(Math.random() * eligible.length)];
-  currentWinner = winner;
-  winners.push(winner);
+  participantData[winner].wins++;
+  participantData[winner].active = false;
 
-  // история
-  if (!winnerHistory[winner]) winnerHistory[winner] = [];
-  winnerHistory[winner].push(new Date().toLocaleString());
+  const winData = {
+    user: winner,
+    time: new Date().toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })
+  };
 
-  // чат победителя
-  winnerMessages = [];
+  winnersHistory.unshift(winData);
 
-  // таймер
-  timer = 0;
-  timerStopped = false;
-  if (timerInterval) clearInterval(timerInterval);
-
-  timerInterval = setInterval(() => {
-    timer++;
-    io.emit('timer', timer);
-  }, 1000);
-
-  // сообщение в чат
-  CHANNELS.forEach(ch => {
-    client.say(ch, `Поздравляю, @${winner}! Ты победил в розыгрыше!`);
-  });
+  client.say(process.env.TWITCH_CHANNELS.split(',')[0],
+    `Поздравляю, @${winner}! Ты победил в розыгрыше!`
+  );
 
   io.emit('winner', {
-    name: winner,
-    history: winnerHistory[winner]
+    winner,
+    history: winnersHistory
   });
 
-  io.emit('winnerMessages', winnerMessages);
-}
+  res.json({ winner });
+});
 
-// ===== ЗАПУСК =====
-server.listen(PORT, () => {
+io.on('connection', socket => {
+  socket.emit('participants', { participants, participantData });
+});
+
+server.listen(3000, () => {
   console.log('Server started');
 });
