@@ -1,81 +1,94 @@
 const socket = io();
 
-socket.on('participants', list => {
-  const ul = document.getElementById('participants');
-  ul.innerHTML = '';
-  list.forEach(u => {
-    const li = document.createElement('li');
-    li.innerText = u;
-    ul.appendChild(li);
-  });
-});
+let timerInterval;
+let seconds = 0;
+let currentWinner = null;
 
-socket.on('chat', data => {
-  const chat = document.getElementById('chat');
-  chat.innerHTML += `<div><b>${data.user}:</b> ${data.message}</div>`;
-  chat.scrollTop = chat.scrollHeight;
-});
-
-socket.on('winner', data => {
-  document.getElementById('winnerModal').style.display = 'block';
-  document.getElementById('winnerName').innerText = data.name;
-
-  const historyDiv = document.getElementById('winnerHistory');
-  historyDiv.innerHTML = '';
-  data.history.forEach(h => {
-    historyDiv.innerHTML += `<div>${h}</div>`;
-  });
-});
-
-socket.on('winnerMessages', msgs => {
-  const div = document.getElementById('winnerMessages');
-  div.innerHTML = '';
-  msgs.forEach(m => {
-    div.innerHTML += `<div>${m}</div>`;
-  });
-});
-
-socket.on('timer', t => {
-  let m = Math.floor(t / 60);
-  let s = t % 60;
-  if (m < 10) m = '0' + m;
-  if (s < 10) s = '0' + s;
-  document.getElementById('timer').innerText = `${m}:${s}`;
-});
-
-socket.on('timerStopped', () => {
-  document.getElementById('timer').style.color = 'lime';
-});
+window.onload = () => {
+  fetch('/api/reset');
+};
 
 function start() {
   fetch('/api/start', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {'Content-Type':'application/json'},
     body: JSON.stringify({
       keyword: document.getElementById('keyword').value,
-      maxSpam: document.getElementById('maxSpam').value,
       antiSpam: document.getElementById('antiSpam').checked,
       allowRepeat: document.getElementById('allowRepeat').checked
     })
   });
+
+  document.getElementById('startBtn').classList.add('active');
+  document.getElementById('stopBtn').classList.remove('active');
 }
 
 function stop() {
   fetch('/api/stop', { method: 'POST' });
+
+  document.getElementById('stopBtn').classList.add('active');
+  document.getElementById('startBtn').classList.remove('active');
 }
 
 function winner() {
-  fetch('/api/winner', { method: 'POST' });
+  fetch('/api/winner')
+  .then(res => res.json())
+  .then(data => {
+    if (!data.winner) return;
+
+    currentWinner = data.winner;
+    document.getElementById('winnerModal').style.display = 'block';
+    document.getElementById('winnerName').innerText = data.winner;
+
+    seconds = 0;
+    document.getElementById('timer').innerText = seconds;
+
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      seconds++;
+      document.getElementById('timer').innerText = seconds;
+    }, 1000);
+
+    document.getElementById('winnerMessages').innerHTML = '';
+  });
 }
 
 function reroll() {
-  fetch('/api/reroll', { method: 'POST' });
-}
-
-function clearUsers() {
-  fetch('/api/clear', { method: 'POST' });
+  winner();
 }
 
 function closeModal() {
   document.getElementById('winnerModal').style.display = 'none';
 }
+
+function clearList() {
+  fetch('/api/reset');
+}
+
+socket.on('participants', data => {
+  const list = document.getElementById('participantsList');
+  list.innerHTML = '';
+
+  data.participants.forEach(user => {
+    const li = document.createElement('li');
+    li.innerText = user;
+
+    if (!data.participantData[user].active) {
+      li.style.color = 'gray';
+    }
+
+    list.appendChild(li);
+  });
+});
+
+socket.on('winnerMessages', data => {
+  if (data.user === currentWinner) {
+    const div = document.getElementById('winnerMessages');
+    const msg = document.createElement('div');
+    msg.innerText = data.message;
+    div.prepend(msg);
+
+    clearInterval(timerInterval);
+    document.getElementById('timer').style.color = 'green';
+  }
+});
