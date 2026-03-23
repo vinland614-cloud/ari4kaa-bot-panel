@@ -1,105 +1,94 @@
-body {
-  font-family: Arial;
-  background: #0f0f13;
-  color: white;
-  margin: 0;
+const socket = io();
+
+let timerInterval;
+let seconds = 0;
+let currentWinner = null;
+
+window.onload = () => {
+  fetch('/api/reset');
+};
+
+function start() {
+  fetch('/api/start', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      keyword: document.getElementById('keyword').value,
+      antiSpam: document.getElementById('antiSpam').checked,
+      allowRepeat: document.getElementById('allowRepeat').checked
+    })
+  });
+
+  document.getElementById('startBtn').classList.add('active');
+  document.getElementById('stopBtn').classList.remove('active');
 }
 
-.container {
-  display: flex;
-  height: 100vh;
+function stop() {
+  fetch('/api/stop', { method: 'POST' });
+
+  document.getElementById('stopBtn').classList.add('active');
+  document.getElementById('startBtn').classList.remove('active');
 }
 
-.column {
-  width: 33.3%;
-  padding: 10px;
-  border-right: 1px solid #2a2a2a;
+function winner() {
+  fetch('/api/winner')
+  .then(res => res.json())
+  .then(data => {
+    if (!data.winner) return;
+
+    currentWinner = data.winner;
+    document.getElementById('winnerModal').style.display = 'block';
+    document.getElementById('winnerName').innerText = data.winner;
+
+    seconds = 0;
+    document.getElementById('timer').innerText = seconds;
+
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      seconds++;
+      document.getElementById('timer').innerText = seconds;
+    }, 1000);
+
+    document.getElementById('winnerMessages').innerHTML = '';
+  });
 }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+function reroll() {
+  winner();
 }
 
-.clearBtn {
-  background: none;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
+function closeModal() {
+  document.getElementById('winnerModal').style.display = 'none';
 }
 
-#participants {
-  border: 1px solid #333;
-  height: 85vh;
-  overflow: auto;
-  background: #15151b;
+function clearList() {
+  fetch('/api/reset');
 }
 
-#chat {
-  height: 90vh;
-  overflow: auto;
-  background: #15151b;
-  padding: 5px;
-}
+socket.on('participants', data => {
+  const list = document.getElementById('participantsList');
+  list.innerHTML = '';
 
-.row {
-  margin: 10px 0;
-  display: flex;
-  justify-content: space-between;
-}
+  data.participants.forEach(user => {
+    const li = document.createElement('li');
+    li.innerText = user;
 
-.center {
-  text-align: center;
-}
+    if (!data.participantData[user].active) {
+      li.style.color = 'gray';
+    }
 
-button {
-  background: #5c2cff;
-  border: none;
-  color: white;
-  padding: 10px;
-  margin: 5px;
-  cursor: pointer;
-}
+    list.appendChild(li);
+  });
+});
 
-.modal {
-  display: none;
-  position: fixed;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.8);
-  top: 0;
-  left: 0;
-}
+socket.on('winnerMessages', data => {
+  if (data.user === currentWinner) {
+    const div = document.getElementById('winnerMessages');
+    const msg = document.createElement('div');
+    msg.innerText = data.message;
+    div.prepend(msg);
 
-.modal-content {
-  background: #1c1c24;
-  padding: 20px;
-  margin: 5% auto;
-  width: 500px;
-  text-align: center;
-}
-
-.messagesHeader {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 15px;
-}
-
-.messages {
-  height: 120px;
-  overflow: auto;
-  border: 1px solid #333;
-  margin-top: 5px;
-}
-
-.history {
-  height: 100px;
-  overflow: auto;
-  border: 1px solid #333;
-  margin-top: 5px;
-}
-
-.modalButtons {
-  margin-top: 15px;
-}
+    clearInterval(timerInterval);
+    document.getElementById('timer').style.color = 'green';
+  }
+});
