@@ -1,94 +1,40 @@
-const socket = io();
-
-let timerInterval;
-let seconds = 0;
-let currentWinner = null;
-
-window.onload = () => {
-  fetch('/api/reset');
-};
-
-function start() {
-  fetch('/api/start', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      keyword: document.getElementById('keyword').value,
-      antiSpam: document.getElementById('antiSpam').checked,
-      allowRepeat: document.getElementById('allowRepeat').checked
-    })
-  });
-
-  document.getElementById('startBtn').classList.add('active');
-  document.getElementById('stopBtn').classList.remove('active');
+body {
+  font-family: Arial;
+  background: #1e1e1e;
+  color: white;
 }
 
-function stop() {
-  fetch('/api/stop', { method: 'POST' });
-
-  document.getElementById('stopBtn').classList.add('active');
-  document.getElementById('startBtn').classList.remove('active');
+.container {
+  display: flex;
+  gap: 20px;
 }
 
-function winner() {
-  fetch('/api/winner')
-  .then(res => res.json())
-  .then(data => {
-    if (!data.winner) return;
-
-    currentWinner = data.winner;
-    document.getElementById('winnerModal').style.display = 'block';
-    document.getElementById('winnerName').innerText = data.winner;
-
-    seconds = 0;
-    document.getElementById('timer').innerText = seconds;
-
-    clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-      seconds++;
-      document.getElementById('timer').innerText = seconds;
-    }, 1000);
-
-    document.getElementById('winnerMessages').innerHTML = '';
-  });
+.controls, .participants {
+  background: #2b2b2b;
+  padding: 20px;
+  border-radius: 10px;
 }
 
-function reroll() {
-  winner();
+button {
+  margin: 5px;
+  padding: 10px;
+  cursor: pointer;
 }
 
-function closeModal() {
-  document.getElementById('winnerModal').style.display = 'none';
+.modal {
+  display: none;
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.7);
 }
 
-function clearList() {
-  fetch('/api/reset');
+.modalContent {
+  background: #2b2b2b;
+  margin: 10% auto;
+  padding: 20px;
+  width: 400px;
+  border-radius: 10px;
 }
-
-socket.on('participants', data => {
-  const list = document.getElementById('participantsList');
-  list.innerHTML = '';
-
-  data.participants.forEach(user => {
-    const li = document.createElement('li');
-    li.innerText = user;
-
-    if (!data.participantData[user].active) {
-      li.style.color = 'gray';
-    }
-
-    list.appendChild(li);
-  });
-});
-
-socket.on('winnerMessages', data => {
-  if (data.user === currentWinner) {
-    const div = document.getElementById('winnerMessages');
-    const msg = document.createElement('div');
-    msg.innerText = data.message;
-    div.prepend(msg);
-
-    clearInterval(timerInterval);
-    document.getElementById('timer').style.color = 'green';
-  }
-});
