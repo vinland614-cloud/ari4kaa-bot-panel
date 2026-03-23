@@ -10,79 +10,45 @@ const io = socketIo(server);
 app.use(express.json());
 app.use(express.static('web'));
 
-let participants = [];
-let participantData = {};
-let winnersHistory = [];
-let isRunning = false;
-let keyword = '';
-let antiSpamEnabled = false;
-let allowRepeatWin = false;
+const PORT = process.env.PORT || 3000;
 
 const client = new tmi.Client({
   options: { debug: true },
   identity: {
-    username: process.env.TWITCH_BOT_USERNAME,
+    username: process.env.TWITCH_USERNAME,
     password: process.env.TWITCH_OAUTH
   },
-  channels: process.env.TWITCH_CHANNELS.split(',')
+  channels: process.env.CHANNELS.split(',')
 });
 
 client.connect();
 
-client.on('message', (channel, tags, message, self) => {
-  if (self) return;
-  if (!isRunning) return;
+let participants = [];
+let participantData = {};
+let giveawayActive = false;
+let keyword = '';
+let antiSpam = false;
+let allowRepeat = false;
+let currentWinner = null;
 
-  const username = tags.username;
-  const msg = message.toLowerCase().trim();
-
-  if (msg === keyword.toLowerCase().trim()) {
-
-    if (!participantData[username]) {
-      participantData[username] = {
-        spam: 0,
-        active: true,
-        wins: 0,
-        messages: []
-      };
-      participants.unshift(username);
-    }
-
-    participantData[username].spam++;
-
-    if (antiSpamEnabled && participantData[username].spam > 3) {
-      participantData[username].active = false;
-    }
-
-    io.emit('participants', { participants, participantData });
-  }
-
-  if (participantData[username]) {
-    participantData[username].messages.push(message);
-    io.emit('winnerMessages', {
-      user: username,
-      message: message
-    });
-  }
+app.get('/api/reset', (req, res) => {
+  participants = [];
+  participantData = {};
+  io.emit('participants', { participants, participantData });
+  res.sendStatus(200);
 });
 
 app.post('/api/start', (req, res) => {
-  keyword = req.body.keyword;
-  antiSpamEnabled = req.body.antiSpam;
-  allowRepeatWin = req.body.allowRepeat;
-  isRunning = true;
-  res.json({ success: true });
+  giveawayActive = true;
+  keyword = req.body.keyword.toLowerCase();
+  antiSpam = req.body.antiSpam;
+  allowRepeat = req.body.allowRepeat;
+  res.sendStatus(200);
 });
 
 app.post('/api/stop', (req, res) => {
-  isRunning = false;
-  res.json({ success: true });
-});
-
-app.post('/api/reset', (req, res) => {
-  participants = [];
-  participantData = {};
-  res.json({ success: true });
+  giveawayActive = false;
+  res.sendStatus(200);
 });
 
 app.get('/api/winner', (req, res) => {
@@ -93,33 +59,51 @@ app.get('/api/winner', (req, res) => {
   }
 
   const winner = activeUsers[Math.floor(Math.random() * activeUsers.length)];
+  currentWinner = winner;
 
-  participantData[winner].wins++;
-  participantData[winner].active = false;
+  if (!allowRepeat) {
+    participantData[winner].active = false;
+  }
 
-  const winData = {
-    user: winner,
-    time: new Date().toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })
-  };
-
-  winnersHistory.unshift(winData);
-
-  client.say(process.env.TWITCH_CHANNELS.split(',')[0],
-    `Поздравляю, @${winner}! Ты победил в розыгрыше!`
-  );
-
-  io.emit('winner', {
-    winner,
-    history: winnersHistory
-  });
+  io.emit('participants', { participants, participantData });
 
   res.json({ winner });
 });
 
-io.on('connection', socket => {
-  socket.emit('participants', { participants, participantData });
+client.on('message', (channel, tags, message, self) => {
+  if (self) return;
+  if (!giveawayActive) return;
+
+  const username = tags.username;
+  const msg = message.toLowerCase();
+
+  if (!participantData[username]) {
+    participantData[username] = {
+      messages: 0,
+      active: true
+    };
+  }
+
+  if (msg.includes(keyword)) {
+    participantData[username].messages++;
+
+    if (antiSpam && participantData[username].messages > 3) {
+      participantData[username].active = false;
+    }
+
+    if (!participants.includes(username)) {
+      participants.push(username);
+    }
+
+    io.emit('participants', { participants, participantData });
+  }
+
+  io.emit('winnerMessages', {
+    user: username,
+    message: message
+  });
 });
 
-server.listen(3000, () => {
-  console.log('Server started');
+server.listen(PORT, () => {
+  console.log('Server started on port ' + PORT);
 });
