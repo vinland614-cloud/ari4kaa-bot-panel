@@ -12,10 +12,7 @@ app.use(express.static('web'));
 
 const PORT = process.env.PORT || 3000;
 
-/* TWITCH */
 const client = new tmi.Client({
-  options: { debug: false },
-  connection: { reconnect: true },
   identity: {
     username: process.env.TWITCH_USERNAME,
     password: process.env.TWITCH_OAUTH
@@ -25,53 +22,39 @@ const client = new tmi.Client({
 
 client.connect();
 
-/* GIVEAWAY */
 let giveawayActive = false;
 let keyword = '';
-let antiSpam = false;
 let allowRepeat = false;
+let multiWinners = false;
+let winnersCount = 1;
 
 let participants = [];
 let participantData = {};
 let winners = [];
+let winStats = {};
 
-/* TWITCH CHAT */
+/* CHAT */
 client.on('message', (channel, tags, message, self) => {
-  if (self) return;
-  if (!giveawayActive) return;
+  if (self || !giveawayActive) return;
 
   const user = tags.username;
 
   if (message.toLowerCase() === keyword.toLowerCase()) {
     if (!participants.includes(user)) {
       participants.push(user);
-      participantData[user] = {
-        messages: [],
-        active: true
-      };
+      participantData[user] = { active: true };
     }
   }
 
-  if (participants.includes(user)) {
-    participantData[user].messages.push(message);
-
-    io.emit('winnerMessages', {
-      user,
-      message
-    });
-  }
-
-  io.emit('participants', {
-    participants,
-    participantData
-  });
+  io.emit('participants', { participants, participantData, winners, winStats });
 });
 
 /* API */
 app.post('/api/start', (req, res) => {
   keyword = req.body.keyword;
-  antiSpam = req.body.antiSpam;
   allowRepeat = req.body.allowRepeat;
+  multiWinners = req.body.multiWinners;
+  winnersCount = req.body.winnersCount || 1;
 
   giveawayActive = true;
   res.sendStatus(200);
@@ -85,10 +68,10 @@ app.post('/api/stop', (req, res) => {
 app.post('/api/reset', (req, res) => {
   participants = [];
   participantData = {};
+  winners = [];
   res.sendStatus(200);
 });
 
-/* Включить/выключить участника */
 app.post('/api/toggle', (req, res) => {
   const user = req.body.user;
   if (participantData[user]) {
@@ -97,7 +80,6 @@ app.post('/api/toggle', (req, res) => {
   res.sendStatus(200);
 });
 
-/* Победитель */
 app.get('/api/winner', (req, res) => {
   let available = participants.filter(u => participantData[u].active);
 
@@ -109,14 +91,24 @@ app.get('/api/winner', (req, res) => {
     return res.json({ winner: null });
   }
 
-  const winner = available[Math.floor(Math.random() * available.length)];
-  winners.push(winner);
+  let selected = [];
 
-  client.say(process.env.CHANNELS.split(',')[0], `Поздравляю @${winner}! Ты победил в розыгрыше`);
+  if (multiWinners) {
+    for (let i = 0; i < winnersCount && available.length > 0; i++) {
+      const w = available.splice(Math.floor(Math.random() * available.length), 1)[0];
+      selected.push(w);
+    }
+  } else {
+    selected.push(available[Math.floor(Math.random() * available.length)]);
+  }
 
-  res.json({ winner });
+  selected.forEach(w => {
+    winners.push(w);
+    winStats[w] = (winStats[w] || 0) + 1;
+    client.say(process.env.CHANNELS.split(',')[0], `Поздравляю @${w}! Ты победил в розыгрыше`);
+  });
+
+  res.json({ winner: selected });
 });
 
-server.listen(PORT, () => {
-  console.log('Server running on port ' + PORT);
-});
+server.listen(PORT, () => console.log('Server running'));
