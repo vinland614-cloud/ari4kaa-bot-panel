@@ -11,104 +11,212 @@ app.use(express.json());
 app.use(express.static('web'));
 
 const PORT = process.env.PORT || 3000;
+const CHANNELS = (process.env.CHANNELS || '').split(',').map(s => s.trim()).filter(Boolean);
 
 const client = new tmi.Client({
+  options: { debug: false },
+  connection: { reconnect: true, secure: true },
   identity: {
     username: process.env.TWITCH_USERNAME,
     password: process.env.TWITCH_OAUTH
   },
-  channels: process.env.CHANNELS.split(',')
+  channels: CHANNELS
 });
 
-client.connect();
+client.connect().catch(err => {
+  console.error('Twitch connect error:', err);
+});
 
+/* STATE */
 let giveawayActive = false;
 let keyword = '';
+let antiSpam = false;
 let allowRepeat = false;
 let multiWinners = false;
-let winnersCount = 1;
+let winnersCount = 2;
 
 let participants = [];
 let participantData = {};
 let winners = [];
-let winStats = {};
+let currentWinner = null;
+let currentWinnerMessages = [];
+let currentWinnerTimerActive = false;
 
-/* CHAT */
-client.on('message', (channel, tags, message, self) => {
-  if (self || !giveawayActive) return;
+function emitParticipants() {
+  io.emit('participants', {
+    participants,
+    participantData,
+    winners
+  });
+}
 
-  const user = tags.username;
-
-  if (message.toLowerCase() === keyword.toLowerCase()) {
-    if (!participants.includes(user)) {
-      participants.push(user);
-      participantData[user] = { active: true };
-    }
+function ensureUser(user) {
+  if (!participantData[user]) {
+    participantData[user] = {
+      active: true,
+      keywordCount: 0,
+      wins: 0
+    };
   }
+}
 
-  io.emit('participants', { participants, participantData, winners, winStats });
-});
+function resetWinnerState() {
+  currentWinner = null;
+  currentWinnerMessages = [];
+  currentWinnerTimerActive = false;
+  io.emit('winnerMessagesReset');
+  io.emit('winnerTimerReset');
+}
 
-/* API */
-app.post('/api/start', (req, res) => {
-  keyword = req.body.keyword;
-  allowRepeat = req.body.allowRepeat;
-  multiWinners = req.body.multiWinners;
-  winnersCount = req.body.winnersCount || 1;
-
-  giveawayActive = true;
-  res.sendStatus(200);
-});
-
-app.post('/api/stop', (req, res) => {
-  giveawayActive = false;
-  res.sendStatus(200);
-});
-
-app.post('/api/reset', (req, res) => {
-  participants = [];
-  participantData = {};
-  winners = [];
-  res.sendStatus(200);
-});
-
-app.post('/api/toggle', (req, res) => {
-  const user = req.body.user;
-  if (participantData[user]) {
-    participantData[user].active = !participantData[user].active;
-  }
-  res.sendStatus(200);
-});
-
-app.get('/api/winner', (req, res) => {
-  let available = participants.filter(u => participantData[u].active);
+function pickWinners() {
+  let available = participants.filter(u => participantData[u] && participantData[u].active);
 
   if (!allowRepeat) {
     available = available.filter(u => !winners.includes(u));
   }
 
-  if (available.length === 0) {
-    return res.json({ winner: null });
+  if (available.length === 0) return [];
+
+  if (!multiWinners) {
+    const one = available[Math.floor(Math.random() * available.length)];
+    return [one];
   }
 
-  let selected = [];
+  const count = Math.max(1, Number(winnersCount) || 1);
+  const selected = [];
+  let pool = [...available];
 
-  if (multiWinners) {
-    for (let i = 0; i < winnersCount && available.length > 0; i++) {
-      const w = available.splice(Math.floor(Math.random() * available.length), 1)[0];
-      selected.push(w);
-    }
-  } else {
-    selected.push(available[Math.floor(Math.random() * available.length)]);
+  while (pool.length > 0 && selected.length < count) {
+    const index = Math.floor(Math.random() * pool.length);
+    selected.push(pool[index]);
+    pool.splice(index, 1);
   }
 
-  selected.forEach(w => {
-    winners.push(w);
-    winStats[w] = (winStats[w] || 0) + 1;
-    client.say(process.env.CHANNELS.split(',')[0], `Поздравляю @${w}! Ты победил в розыгрыше`);
+  return selected;
+}
+
+/* TWITCH CHAT */
+client.on('message', (channel, tags, message, self) => {
+  if (self) return;
+
+  const user = (tags.username || '').toLowerCase();
+  const text = String(message || '').trim();
+
+  if (!user) return;
+
+  io.emit('chatMessage', {
+    user,
+    message: text,
+    channel: channel.replace('#', '')
   });
 
-  res.json({ winner: selected });
+  if (giveawayActive && keyword && text.toLowerCase() === keyword.toLowerCase()) {
+    ensureUser(user);
+
+    participantData[user].keywordCount += 1;
+
+    if (antiSpam && participantData[user].keywordCount > 3) {
+      participantData[user].active = false;
+    }
+
+    if (!participants.includes(user)) {
+      participants.push(user);
+    }
+
+    emitParticipants();
+  }
+
+  if (currentWinner && user === currentWinner) {
+    currentWinnerMessages.unshift(text);
+    io.emit('winnerMessages', currentWinnerMessages);
+
+    if (currentWinnerTimerActive) {
+      currentWinnerTimerActive = false;
+      io.emit('winnerTimerStop');
+    }
+  }
 });
 
-server.listen(PORT, () => console.log('Server running'));
+/* API */
+app.post('/api/start', (req, res) => {
+  keyword = String(req.body.keyword || '').trim();
+  antiSpam = !!req.body.antiSpam;
+  allowRepeat = !!req.body.allowRepeat;
+  multiWinners = !!req.body.multiWinners;
+  winnersCount = req.body.winnersCount || 2;
+
+  giveawayActive = true;
+
+  res.json({ success: true });
+});
+
+app.post('/api/stop', (req, res) => {
+  giveawayActive = false;
+  res.json({ success: true });
+});
+
+app.post('/api/reset', (req, res) => {
+  giveawayActive = false;
+  keyword = '';
+  participants = [];
+  participantData = {};
+  winners = [];
+  resetWinnerState();
+  emitParticipants();
+  res.json({ success: true });
+});
+
+app.post('/api/toggle', (req, res) => {
+  const user = String(req.body.user || '').toLowerCase();
+  if (participantData[user]) {
+    participantData[user].active = !participantData[user].active;
+    emitParticipants();
+  }
+  res.json({ success: true });
+});
+
+app.get('/api/winner', (req, res) => {
+  const selected = pickWinners();
+
+  if (selected.length === 0) {
+    return res.json({ winner: null, winners: [] });
+  }
+
+  selected.forEach(user => {
+    winners.push(user);
+    ensureUser(user);
+    participantData[user].wins += 1;
+
+    if (CHANNELS[0]) {
+      client.say(CHANNELS[0], `Поздравляю, @${user}! Ты победил в розыгрыше!`);
+    }
+  });
+
+  currentWinner = selected[0];
+  currentWinnerMessages = [];
+  currentWinnerTimerActive = true;
+
+  emitParticipants();
+
+  io.emit('winnerSelected', {
+    winners: selected,
+    primaryWinner: selected[0],
+    winCounts: selected.reduce((acc, user) => {
+      acc[user] = participantData[user]?.wins || 0;
+      return acc;
+    }, {})
+  });
+
+  io.emit('winnerMessagesReset');
+  io.emit('winnerTimerStart');
+
+  return res.json({
+    winner: selected[0],
+    winners: selected,
+    primaryWinner: selected[0]
+  });
+});
+
+server.listen(PORT, () => {
+  console.log('Server running on port ' + PORT);
+});
