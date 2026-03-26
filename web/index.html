@@ -1,65 +1,90 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<title>Giveaway</title>
-<link rel="stylesheet" href="/style.css">
+  <meta charset="UTF-8" />
+  <title>Giveaway Bot</title>
+  <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
+  <div class="container">
+    <!-- УЧАСТНИКИ -->
+    <div class="block">
+      <div class="blockTitle">
+        <span>👥 Участники</span>
+        <button class="clearBtn" onclick="clearList()">🧹</button>
+      </div>
+      <div class="participantsWrap">
+        <ul id="participantsList"></ul>
+      </div>
+    </div>
 
-<div class="container">
+    <!-- РОЗЫГРЫШ -->
+    <div class="block">
+      <div class="blockTitle center">🎁 Розыгрыш</div>
 
-<!-- УЧАСТНИКИ -->
-<div class="block">
-  <div class="blockTitle">👥 Участники <button onclick="clearList()">🧹</button></div>
-  <ul id="participantsList"></ul>
-</div>
+      <input id="keyword" placeholder="Кодовое слово" />
 
-<!-- РОЗЫГРЫШ -->
-<div class="block">
-  <div class="blockTitle center">🎁 Розыгрыш</div>
+      <div class="toggles3">
+        <label class="toggleCard">
+          <input type="checkbox" id="allowRepeat" />
+          <span class="toggleText">Повторная победа</span>
+        </label>
 
-  <input id="keyword" placeholder="Кодовое слово">
+        <label class="toggleCard">
+          <input type="checkbox" id="antiSpam" />
+          <span class="toggleText">Антиспам</span>
+        </label>
 
-  <div class="checkboxRow">
-    <label><input type="checkbox" id="allowRepeat"> Повторная победа</label>
-    <label><input type="checkbox" id="multiWinners"> Несколько победителей</label>
+        <label class="toggleCard">
+          <input type="checkbox" id="multiWinners" />
+          <span class="toggleText">Несколько победителей</span>
+        </label>
+      </div>
+
+      <input id="winnersCount" type="number" min="1" value="2" />
+
+      <div class="buttons">
+        <button id="startBtn" onclick="start()">Старт</button>
+        <button id="stopBtn" onclick="stop()">Стоп</button>
+      </div>
+
+      <div class="center winnerBtnWrap">
+        <button id="winnerBtn" onclick="winner()">Выбрать победителя</button>
+      </div>
+    </div>
+
+    <!-- ЧАТ -->
+    <div class="block">
+      <div class="blockTitle center">💬 Чат</div>
+      <div id="chat" class="chat"></div>
+    </div>
   </div>
 
-  <input id="winnersCount" type="number" value="2" min="1">
+  <!-- МОДАЛКА ПОБЕДИТЕЛЯ -->
+  <div id="winnerModal" class="modal">
+    <div class="modalWindow">
+      <div class="winnerTitle">🏆 Победитель</div>
+      <div id="winnerName" class="winnerName"></div>
+      <div id="winnerWins" class="winnerWins"></div>
 
-  <div class="buttons">
-    <button id="startBtn" onclick="start()">Старт</button>
-    <button id="stopBtn" onclick="stop()">Стоп</button>
+      <div class="messagesHeader">
+        <span>Сообщения</span>
+        <span id="timer">0</span>
+      </div>
+
+      <div id="winnerMessages" class="messages"></div>
+
+      <div class="historyTitle">История побед</div>
+      <div id="winnerHistory" class="history"></div>
+
+      <div class="modalButtons">
+        <button onclick="reroll()">Рерол</button>
+        <button onclick="closeModal()">Закрыть</button>
+      </div>
+    </div>
   </div>
 
-  <div class="center">
-    <button onclick="winner()">Выбрать победителя</button>
-  </div>
-</div>
-
-<!-- ЧАТ -->
-<div class="block">
-  <div class="blockTitle center">💬 Чат</div>
-  <div id="chat" class="chat"></div>
-</div>
-
-</div>
-
-<!-- МОДАЛКА -->
-<div id="winnerModal" class="modal">
-  <div class="modalWindow">
-    <h2>🏆 Победитель</h2>
-    <div id="winnerName"></div>
-
-    <br>
-
-    <button onclick="reroll()">Рерол</button>
-    <button onclick="closeModal()">Закрыть</button>
-  </div>
-</div>
-
-<script src="/socket.io/socket.io.js"></script>
-<script src="/script.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/script.js"></script>
 </body>
 </html>
