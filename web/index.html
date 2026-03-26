@@ -9,11 +9,13 @@
 
 <div class="container">
 
+<!-- УЧАСТНИКИ -->
 <div class="block">
   <div class="blockTitle">👥 Участники <button onclick="clearList()">🧹</button></div>
   <ul id="participantsList"></ul>
 </div>
 
+<!-- РОЗЫГРЫШ -->
 <div class="block">
   <div class="blockTitle center">🎁 Розыгрыш</div>
 
@@ -36,6 +38,7 @@
   </div>
 </div>
 
+<!-- ЧАТ -->
 <div class="block">
   <div class="blockTitle center">💬 Чат</div>
   <div id="chat" class="chat"></div>
@@ -43,15 +46,17 @@
 
 </div>
 
+<!-- МОДАЛКА -->
 <div id="winnerModal" class="modal">
-<div class="modalWindow">
-<div class="winnerTitle">🏆 Победитель</div>
-<div id="winnerName"></div>
-<div class="modalButtons">
-<button onclick="reroll()">Рерол</button>
-<button onclick="closeModal()">Закрыть</button>
-</div>
-</div>
+  <div class="modalWindow">
+    <h2>🏆 Победитель</h2>
+    <div id="winnerName"></div>
+
+    <br>
+
+    <button onclick="reroll()">Рерол</button>
+    <button onclick="closeModal()">Закрыть</button>
+  </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
