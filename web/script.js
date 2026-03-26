@@ -47,9 +47,6 @@ function winner() {
     }, 1000);
 
     document.getElementById('winnerMessages').innerHTML = '';
-
-    saveHistory(data.winner);
-    loadHistory(data.winner);
   });
 }
 
@@ -65,13 +62,34 @@ function clearList() {
   fetch('/api/reset', { method: 'POST' });
 }
 
+/* Галочки участников */
+function toggleUser(user) {
+  fetch('/api/toggle', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ user })
+  });
+}
+
 socket.on('participants', data => {
   const list = document.getElementById('participantsList');
   list.innerHTML = '';
 
   data.participants.forEach(user => {
     const li = document.createElement('li');
-    li.innerText = user;
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = data.participantData[user].active;
+    checkbox.onchange = () => toggleUser(user);
+
+    li.appendChild(checkbox);
+    li.appendChild(document.createTextNode(' ' + user));
+
+    if (!data.participantData[user].active) {
+      li.style.color = 'gray';
+    }
+
     list.appendChild(li);
   });
 });
@@ -92,21 +110,3 @@ socket.on('winnerMessages', data => {
     document.getElementById('timer').style.color = 'lightgreen';
   }
 });
-
-function saveHistory(user) {
-  let history = JSON.parse(localStorage.getItem('history_' + user)) || [];
-  history.unshift(new Date().toLocaleString('ru-RU'));
-  localStorage.setItem('history_' + user, JSON.stringify(history));
-}
-
-function loadHistory(user) {
-  let history = JSON.parse(localStorage.getItem('history_' + user)) || [];
-  const div = document.getElementById('winnerHistory');
-  div.innerHTML = '';
-
-  history.forEach(date => {
-    const d = document.createElement('div');
-    d.innerText = date;
-    div.appendChild(d);
-  });
-}
