@@ -145,3 +145,22 @@ button.active {
   text-align: center;
   margin-top: 10px;
 }
+
+/* Участник строка */
+.participantItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #0e0e10;
+  border: 1px solid #2f2f35;
+  padding: 8px;
+  border-radius: 6px;
+  margin-bottom: 5px;
+}
+
+/* Левая часть */
+.leftPart {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
