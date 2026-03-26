@@ -11,7 +11,10 @@ app.use(express.json());
 app.use(express.static('web'));
 
 const PORT = process.env.PORT || 3000;
-const CHANNELS = (process.env.CHANNELS || '').split(',').map(s => s.trim()).filter(Boolean);
+const CHANNELS = (process.env.CHANNELS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
 
 const client = new tmi.Client({
   options: { debug: false },
@@ -60,6 +63,10 @@ function ensureUser(user) {
   }
 }
 
+function normalizeText(text) {
+  return String(text || '').trim().toLowerCase();
+}
+
 function resetWinnerState() {
   currentWinner = null;
   currentWinnerMessages = [];
@@ -84,7 +91,7 @@ function pickWinners() {
 
   const count = Math.max(1, Number(winnersCount) || 1);
   const selected = [];
-  let pool = [...available];
+  const pool = [...available];
 
   while (pool.length > 0 && selected.length < count) {
     const index = Math.floor(Math.random() * pool.length);
@@ -99,8 +106,10 @@ function pickWinners() {
 client.on('message', (channel, tags, message, self) => {
   if (self) return;
 
-  const user = (tags.username || '').toLowerCase();
+  const user = normalizeText(tags.username);
   const text = String(message || '').trim();
+  const normalizedMessage = normalizeText(message);
+  const normalizedKeyword = normalizeText(keyword);
 
   if (!user) return;
 
@@ -110,17 +119,29 @@ client.on('message', (channel, tags, message, self) => {
     channel: channel.replace('#', '')
   });
 
-  if (giveawayActive && keyword && text.toLowerCase() === keyword.toLowerCase()) {
+  if (giveawayActive && normalizedKeyword && normalizedMessage === normalizedKeyword) {
     ensureUser(user);
 
-    participantData[user].keywordCount += 1;
-
-    if (antiSpam && participantData[user].keywordCount > 3) {
-      participantData[user].active = false;
-    }
-
+    /* С первого сообщения добавляем в список */
     if (!participants.includes(user)) {
       participants.push(user);
+    }
+
+    /* Считаем только сообщения с кодовым словом */
+    participantData[user].keywordCount += 1;
+
+    /* Антиспам: 1-3 допустимо, 4-е сообщение выключает */
+    if (antiSpam) {
+      if (participantData[user].keywordCount >= 4) {
+        participantData[user].active = false;
+      } else {
+        participantData[user].active = true;
+      }
+    } else {
+      /* если антиспам выключен, не трогаем active автоматически */
+      if (participantData[user].active === undefined) {
+        participantData[user].active = true;
+      }
     }
 
     emitParticipants();
@@ -146,7 +167,6 @@ app.post('/api/start', (req, res) => {
   winnersCount = req.body.winnersCount || 2;
 
   giveawayActive = true;
-
   res.json({ success: true });
 });
 
@@ -167,7 +187,7 @@ app.post('/api/reset', (req, res) => {
 });
 
 app.post('/api/toggle', (req, res) => {
-  const user = String(req.body.user || '').toLowerCase();
+  const user = normalizeText(req.body.user);
   if (participantData[user]) {
     participantData[user].active = !participantData[user].active;
     emitParticipants();
