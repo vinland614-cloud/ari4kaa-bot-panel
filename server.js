@@ -1,112 +1,78 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const tmi = require('tmi.js');
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Giveaway Bot</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+<div class="container">
 
-app.use(express.json());
-app.use(express.static('web'));
+  <!-- Участники -->
+  <div class="block">
+    <div class="blockTitle">
+      👥 Участники
+      <button class="clearBtn" onclick="clearList()">🧹</button>
+    </div>
+    <ul id="participantsList"></ul>
+  </div>
 
-const PORT = process.env.PORT || 3000;
+  <!-- Розыгрыш -->
+  <div class="block">
+    <div class="blockTitle center">🎁 Розыгрыш</div>
 
-/* TWITCH */
-const client = new tmi.Client({
-  options: { debug: false },
-  connection: { reconnect: true },
-  identity: {
-    username: process.env.TWITCH_USERNAME,
-    password: process.env.TWITCH_OAUTH
-  },
-  channels: process.env.CHANNELS.split(',')
-});
+    <input id="keyword" placeholder="Кодовое слово">
 
-client.connect();
+    <div class="checkboxRow">
+      <label><input type="checkbox" id="antiSpam"> Антиспам</label>
+      <label><input type="checkbox" id="allowRepeat"> Повторная победа</label>
+    </div>
 
-/* GIVEAWAY */
-let giveawayActive = false;
-let keyword = '';
-let antiSpam = false;
-let allowRepeat = false;
+    <div class="buttons">
+      <button id="startBtn" onclick="start()">Старт</button>
+      <button id="stopBtn" onclick="stop()">Стоп</button>
+    </div>
 
-let participants = [];
-let participantData = {};
-let winners = [];
+    <div class="center">
+      <button onclick="winner()">Выбрать победителя</button>
+    </div>
+  </div>
 
-/* TWITCH CHAT */
-client.on('message', (channel, tags, message, self) => {
-  if (self) return;
-  if (!giveawayActive) return;
+  <!-- Чат -->
+  <div class="block">
+    <div class="blockTitle center">💬 Чат</div>
+    <div id="chat" class="chat"></div>
+  </div>
 
-  const user = tags.username;
+</div>
 
-  if (message.toLowerCase() === keyword.toLowerCase()) {
-    if (!participants.includes(user)) {
-      participants.push(user);
-      participantData[user] = {
-        messages: [],
-        active: true
-      };
-    }
-  }
+<!-- Модальное окно -->
+<div id="winnerModal" class="modal">
+  <div class="modalWindow">
 
-  if (participants.includes(user)) {
-    participantData[user].messages.push(message);
+    <div class="winnerTitle">🏆 Победитель</div>
+    <div id="winnerName" class="winnerName"></div>
 
-    io.emit('winnerMessages', {
-      user,
-      message
-    });
-  }
+    <div class="messagesHeader">
+      <span>Сообщения</span>
+      <span id="timer">0</span>
+    </div>
 
-  io.emit('participants', {
-    participants,
-    participantData
-  });
-});
+    <div id="winnerMessages" class="messages"></div>
 
-/* API */
-app.post('/api/start', (req, res) => {
-  keyword = req.body.keyword;
-  antiSpam = req.body.antiSpam;
-  allowRepeat = req.body.allowRepeat;
+    <div class="historyTitle">История побед</div>
+    <div id="winnerHistory" class="history"></div>
 
-  giveawayActive = true;
-  res.sendStatus(200);
-});
+    <div class="modalButtons">
+      <button onclick="reroll()">Рерол</button>
+      <button onclick="closeModal()">Закрыть</button>
+    </div>
 
-app.post('/api/stop', (req, res) => {
-  giveawayActive = false;
-  res.sendStatus(200);
-});
+  </div>
+</div>
 
-app.post('/api/reset', (req, res) => {
-  participants = [];
-  participantData = {};
-  res.sendStatus(200);
-});
-
-app.get('/api/winner', (req, res) => {
-  let available = participants;
-
-  if (!allowRepeat) {
-    available = participants.filter(u => !winners.includes(u));
-  }
-
-  if (available.length === 0) {
-    return res.json({ winner: null });
-  }
-
-  const winner = available[Math.floor(Math.random() * available.length)];
-  winners.push(winner);
-
-  client.say(process.env.CHANNELS.split(',')[0], `Поздравляю, @${winner}! Ты победил в розыгрыше`);
-
-  res.json({ winner });
-});
-
-server.listen(PORT, () => {
-  console.log('Server running on port ' + PORT);
-});
+<script src="/socket.io/socket.io.js"></script>
+<script src="/script.js"></script>
+</body>
+</html>
