@@ -174,7 +174,6 @@ function winner() {
     .then(res => res.json())
     .then(data => {
       if (!data || !data.winner) return;
-
       saveHistory(data.primaryWinner || data.winner);
     });
 }
