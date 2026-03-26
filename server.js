@@ -63,8 +63,8 @@ function ensureUser(user) {
   }
 }
 
-function normalizeText(text) {
-  return String(text || '').trim().toLowerCase();
+function normalizeUser(user) {
+  return String(user || '').trim().toLowerCase();
 }
 
 function resetWinnerState() {
@@ -106,10 +106,8 @@ function pickWinners() {
 client.on('message', (channel, tags, message, self) => {
   if (self) return;
 
-  const user = normalizeText(tags.username);
+  const user = normalizeUser(tags.username);
   const text = String(message || '').trim();
-  const normalizedMessage = normalizeText(message);
-  const normalizedKeyword = normalizeText(keyword);
 
   if (!user) return;
 
@@ -119,27 +117,20 @@ client.on('message', (channel, tags, message, self) => {
     channel: channel.replace('#', '')
   });
 
-  if (giveawayActive && normalizedKeyword && normalizedMessage === normalizedKeyword) {
+  /* СТРОГОЕ СОВПАДЕНИЕ С КОДОВЫМ СЛОВОМ */
+  if (giveawayActive && keyword && text === keyword) {
     ensureUser(user);
 
-    /* С первого сообщения добавляем в список */
     if (!participants.includes(user)) {
       participants.push(user);
     }
 
-    /* Считаем только сообщения с кодовым словом */
     participantData[user].keywordCount += 1;
 
-    /* Антиспам: 1-3 допустимо, 4-е сообщение выключает */
     if (antiSpam) {
       if (participantData[user].keywordCount >= 4) {
         participantData[user].active = false;
       } else {
-        participantData[user].active = true;
-      }
-    } else {
-      /* если антиспам выключен, не трогаем active автоматически */
-      if (participantData[user].active === undefined) {
         participantData[user].active = true;
       }
     }
@@ -187,7 +178,7 @@ app.post('/api/reset', (req, res) => {
 });
 
 app.post('/api/toggle', (req, res) => {
-  const user = normalizeText(req.body.user);
+  const user = normalizeUser(req.body.user);
   if (participantData[user]) {
     participantData[user].active = !participantData[user].active;
     emitParticipants();
